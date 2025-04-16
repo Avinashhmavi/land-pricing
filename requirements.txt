@@ -5,3 +5,4 @@ deep-translator
 sqlalchemy
 python-dotenv
 gunicorn
+psutil
