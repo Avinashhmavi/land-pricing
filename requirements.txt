@@ -1,5 +1,7 @@
+flask
 python-docx
-deep_translator
-sqlalchemy
-gradio
 pandas
+deep-translator
+sqlalchemy
+python-dotenv
+gunicorn
