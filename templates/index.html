@@ -1,0 +1,204 @@
+<script type="text/javascript">
+    var gk_isXlsx = false;
+    var gk_xlsxFileLookup = {};
+    var gk_fileData = {};
+    function loadFileData(filename) {
+    if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+        try {
+            var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+            var firstSheetName = workbook.SheetNames[0];
+            var worksheet = workbook.Sheets[firstSheetName];
+
+            // Convert sheet to JSON to filter blank rows
+            var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+            // Filter out blank rows (rows where all cells are empty, null, or undefined)
+            var filteredData = jsonData.filter(row =>
+                row.some(cell => cell !== '' && cell !== null && cell !== undefined)
+            );
+
+            // Convert filtered JSON back to CSV
+            var csv = XLSX.utils.aoa_to_sheet(filteredData); // Create a new sheet from filtered array of arrays
+            csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+            return csv;
+        } catch (e) {
+            console.error(e);
+            return "";
+        }
+    }
+    return gk_fileData[filename] || "";
+    }
+
+    // Function to show processing message and disable button
+    function showProcessing() {
+        document.getElementById('processButton').disabled = true;
+        document.getElementById('processingMessage').style.display = 'block';
+    }
+
+    // Function to download table as CSV
+    function downloadCSV() {
+        const table = document.querySelector('table.data');
+        if (!table) return;
+        
+        let csv = [];
+        const rows = table.querySelectorAll('tr');
+        
+        rows.forEach(row => {
+            const cols = row.querySelectorAll('th, td');
+            const rowData = Array.from(cols).map(col => `"${col.textContent.replace(/"/g, '""')}"`);
+            csv.push(rowData.join(','));
+        });
+        
+        const csvContent = csv.join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.setAttribute('href', url);
+        link.setAttribute('download', 'table_output.csv');
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+</script>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI-Assisted Land Pricing Tool</title>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        background-color:rgb(210, 207, 198);
+        margin: 10;
+        padding: 20px;
+    }
+    .container {
+        max-width: 1400px;
+        margin: 0 auto;
+        background: white;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    }
+    .header {
+        text-align: center;
+        margin-bottom: 30px;
+    }
+    .header img.left {
+        float: left;
+        margin-right: 30px;
+        width: 230px; /* Reduced logo size */
+        height: auto;
+    }
+    .header img.right {
+        float: right;
+        margin-left: 30px;
+        width: 230px; /* Reduced logo size */
+        height: auto;
+    }
+    .header h1 {
+        margin: 0;
+        font
+
+-size: 24px;
+    }
+    .form-group {
+        margin-bottom: 20px;
+    }
+    .form-group label {
+        display: block;
+        margin-bottom: 10px;
+        font-weight: bold;
+    }
+    .form-group input[type="file"],
+    .form-group input[type="text"] {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 5px;
+        box-sizing: border-box;
+    }
+    .form-group button {
+        background-color: #28a745;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 5px;
+        cursor: pointer;
+    }
+    .form-group button:hover {
+        background-color: #218838;
+    }
+    .results {
+        margin-top: 20px;
+    }
+    .results p {
+        margin: 10px 0;
+    }
+    table.data {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+    }
+    table.data th, table.data td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+    }
+    table.data th {
+        background-color: #f2f2f2;
+    }
+    #processingMessage {
+        display: none;
+        color:rgb(16, 21, 18);
+        margin-top: 10px;
+        font-weight: bold;
+    }
+    .download-btn {
+        background-color:rgb(50, 14, 183);
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 5px;
+        cursor: pointer;
+        margin-top: 10px;
+        display: {% if table %}block{% else %}none{% endif %};
+    }
+    .download-btn:hover {
+        background-color: #0056b3;
+    }
+</style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <img src="{{ url_for('static', filename='konkan.jpg') }}" alt="कोकण लोगो" class="left">
+        <img src="{{ url_for('static', filename='symbol.jpg') }}" alt="चिन्ह" class="right">
+        <h1>Land Pricing Tool (जमीन किंमत साधन)</h1>
+    </div>
+    <form method="POST" action="/process" enctype="multipart/form-data" onsubmit="showProcessing()">
+        <div class="form-group">
+            <label>Upload Word Document (.docx) (वर्ड डॉक्युमेंट (.docx) अपलोड करा)</label>
+            <input type="file" name="input_file" accept=".docx" required>
+        </div>
+        <div class="form-group">
+            <label>Exclude Survey Numbers (comma-separated) (सर्वेक्षण क्रमांक वगळा (स्वल्पविरामाने विभक्त केलेले))</label>
+            <input type="text" name="excluded_survey_numbers" placeholder="e.g., 196, 172">
+        </div>
+        <div class="form-group">
+            <button type="submit" id="processButton">Process Table (प्रक्रिया सारणी)</button>
+            <div id="processingMessage">Processing... Please wait for 1-2 minutes to get the table.</div>
+        </div>
+    </form>
+    <div class="results">
+        <p>{{ result_en }}</p>
+        <p>{{ result_mr }}</p>
+        {% if table %}
+            {{ table | safe }}
+            <button class="download-btn" onclick="downloadCSV()">Download Table as CSV</button>
+        {% endif %}
+    </div>
+</div>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9315b20cef1eb035',t:'MTc0NDgyNzYxNC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script>
+</body>
+</html>
