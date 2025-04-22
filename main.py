@@ -2,7 +2,6 @@ from flask import Flask, render_template, request, redirect, url_for, session
 from docx import Document
 import pandas as pd
 import io
-from deep_translator import GoogleTranslator
 import re
 from sqlalchemy import create_engine
 import math
@@ -43,27 +42,6 @@ def extract_table_alternative(docx_bytes):
         print(f"Error extracting table (alternative method): {e}")
         return None
 
-def contains_devanagari(text):
-    return re.search(r'[\u0900-\u097F]', str(text)) is not None
-
-def translate_devanagari_only(text):
-    if isinstance(text, str) and contains_devanagari(text):
-        try:
-            translated = GoogleTranslator(source='mr', target='en').translate(text)
-            return translated
-        except Exception as e:
-            print(f"Error translating '{text}': {e}")
-            return text
-    return text
-
-def translate_dataframe_content(df):
-    translated_df = df.copy()
-    new_columns = {col: translate_devanagari_only(col) for col in translated_df.columns}
-    translated_df.rename(columns=new_columns, inplace=True)
-    for col in translated_df.columns:
-        translated_df[col] = translated_df[col].apply(lambda x: translate_devanagari_only(str(x)))
-    return translated_df
-
 def convert_date_format(date_str):
     try:
         pd_date = pd.to_datetime(date_str, format='%m/%d/%Y', errors='raise')
@@ -74,6 +52,13 @@ def convert_date_format(date_str):
             return pd_date.strftime('%Y-%m-%d')
         except ValueError:
             return date_str
+        
+import unicodedata
+
+def clean_text(text):
+    if not isinstance(text, str):
+        return text
+    return unicodedata.normalize('NFKC', text.strip())
 
 def process_data(docx_file_bytes, excluded_survey_numbers_str):
     try:
@@ -82,19 +67,19 @@ def process_data(docx_file_bytes, excluded_survey_numbers_str):
             return "No table found or error during extraction.", "", pd.DataFrame()
         df.columns = df.iloc[0]
         df1 = df[1:]
-        translated_df1 = translate_dataframe_content(df1)
-        if 'Date' in translated_df1.columns:
-            translated_df1['Date'] = translated_df1['Date'].apply(convert_date_format)
+        if 'दिनांक' in df1.columns:
+            df1['दिनांक'] = df1['दिनांक'].apply(convert_date_format)
+        df1['दस्ताचा प्रकार'] = df1['दस्ताचा प्रकार'].apply(clean_text)
         engine = create_engine('sqlite:///:memory:')
         table_name = 'mytable'
-        translated_df1.to_sql(table_name, engine, if_exists='replace', index=False)
-        date_column = 'Date'
-        price_column = 'Purchase price'
-        p_column = 'Per sq. M.'
-        deed_type_column = 'Type of document'
+        df1.to_sql(table_name, engine, if_exists='replace', index=False)
+        date_column = 'दिनांक'
+        price_column = 'खरेदी किंमत'
+        p_column = 'प्रती चौ.मी.'
+        deed_type_column = 'दस्ताचा प्रकार'
         start_date = '2020-05-02'
         end_date = '2023-05-02'
-        deed_values = ['Conveyance deed', 'Convens ded', '65 Missing Letters', '65-Church letter letter', 'Conjunction', 'Contract']
+        deed_values = ['कन्व्हेन्स डीड', 'कन्व्हेअन्स डीड', 'कन्‍व्हेन्स डीड', '65-चुक दुरुस्ती पत्र', '65 चुक दुरुस्ती पत्र', 'करारनामा']
         first_filter_query = f"SELECT * FROM {table_name} WHERE `{date_column}` BETWEEN '{start_date}' AND '{end_date}'"
         second_filter_query = f"SELECT * FROM ({first_filter_query}) WHERE `{price_column}` NOT IN (0, 1) AND `{p_column}` NOT BETWEEN 0 AND 10"
         deed_values_str = ', '.join([f"'{v}'" for v in deed_values])
@@ -102,8 +87,7 @@ def process_data(docx_file_bytes, excluded_survey_numbers_str):
         final_table = pd.read_sql(third_filter_query, engine)
         final_table_name = 'final_filtered_table'
         final_table.to_sql(final_table_name, engine, if_exists='replace', index=False)
-        sqm_column = 'Per sq. M.'
-        survey_no_column = 'Survey No.'
+        survey_no_column = 'सर्व्हे नं.'
         excluded_numbers = [num.strip() for num in excluded_survey_numbers_str.replace(' ', ',').split(',') if num.strip().isdigit()]
         excluded_condition = ""
         if excluded_numbers:
@@ -111,11 +95,12 @@ def process_data(docx_file_bytes, excluded_survey_numbers_str):
             excluded_condition = f"AND CAST(SUBSTR(`{survey_no_column}`, 1, INSTR(`{survey_no_column}`, '/') - 1) AS INTEGER) NOT IN ({excluded_numbers_str})"
         survey_no_filter_query = f"SELECT * FROM {final_table_name} WHERE INSTR(`{survey_no_column}`, '/') = 0 {excluded_condition} OR (INSTR(`{survey_no_column}`, '/') > 0 {excluded_condition})"
         df_filtered_survey = pd.read_sql(survey_no_filter_query, engine)
-        df_filtered_survey[sqm_column] = pd.to_numeric(df_filtered_survey[sqm_column], errors='coerce')
-        sorted_df = df_filtered_survey.sort_values(by=sqm_column, ascending=False)
-        half_rows = math.ceil(len(sorted_df) / 2) if len(sorted_df) > 0 else 0
+        df_filtered_survey = df_filtered_survey[~((df_filtered_survey['दस्ताचा प्रकार'] == 'अभिहस्तांतरणपत्र') & (df_filtered_survey['खरेदी किंमत'] != '600000'))]
+        df_filtered_survey[p_column] = pd.to_numeric(df_filtered_survey[p_column], errors='coerce')
+        sorted_df = df_filtered_survey.sort_values(by=p_column, ascending=False)
+        half_rows = math.floor(len(sorted_df) / 2) if len(sorted_df) > 0 else 0
         top_half_df = sorted_df.head(half_rows)
-        average_sqm = top_half_df[sqm_column].mean() if sqm_column in top_half_df.columns and not top_half_df.empty else None
+        average_sqm = top_half_df[p_column].mean() if p_column in top_half_df.columns and not top_half_df.empty else None
         return f"The average of these {half_rows} purchase and sale transactions is Rs. {average_sqm:.2f}/- per sq. m." if average_sqm else "Could not calculate the average 'Per sq. M.' due to missing data or column.", f"सदर {half_rows} खरेदी विक्री व्यवहारांची सरासरी रु. {average_sqm:.2f}/- प्रती चौ. मी." if average_sqm else "", top_half_df
     except Exception as e:
         return f"An error occurred: {e}", "", pd.DataFrame()
