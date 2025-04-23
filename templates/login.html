@@ -107,6 +107,20 @@
             margin-top: 50px;
             font-size: 14px;
         }
+        .footer-images {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 20px;
+        }
+        .footer-images img {
+            width: 100px;
+            height: auto;
+        }
+        .disclaimer {
+            margin-top: 10px;
+            font-size: 12px;
+            color: #333;
+        }
     </style>
 </head>
 <body>
@@ -130,11 +144,18 @@
             <button type="button" class="admin-login">Admin Login</button>
             <div class="mt-8"><input type="text" name="user_id" placeholder="User ID" required class="w-full p-3 border border-gray-300 rounded"></div>
             <div><input type="password" name="password" placeholder="Password" required class="w-full p-3 border border-gray-300 rounded"></div>
-            <button type="submit" class="mt-8">Login</button> <!-- Increased margin-top to mt-8 -->
+            <button type="submit" class="mt-8">Login</button>
             {% if error %}
                 <p class="error mt-2">{{ error }}</p>
             {% endif %}
         </form>
+        <div class="footer-images">
+            <img src="{{ url_for('static', filename='dep.jpg') }}" alt="Department Logo">
+            <img src="{{ url_for('static', filename='vija.png') }}" alt="Vijaybhoomi Logo">
+        </div>
+        <div class="disclaimer">
+            Disclaimer: All rights reserved with Center for Research and Development, Vijaybhoomi University.
+        </div>
     </div>
-</body>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'934e5b070bae4d9a',t:'MTc0NTQyMTczOC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
